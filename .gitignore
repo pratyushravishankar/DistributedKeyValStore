@@ -131,3 +131,4 @@ libs/
 *.log
 *.sql
 *.sqlite
+*.dSYM
