@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package hashmap;
+
+// Message to represent a key-value pair
+message KeyValue {
+    string key = 1;      // The key in the hashmap
+    string value = 2;    // The value associated with the key
+}
+
+// Request message for adding or updating a key-value pair
+message PutRequest {
+    KeyValue kv = 1;     // The key-value pair to add or update
+}
+
+// Response message for the PutRequest
+message PutResponse {
+    bool success = 1;    // Indicates if the operation was successful
+}
+
+// Request message for retrieving a value by key
+message GetRequest {
+    string key = 1;      // The key to retrieve
+}
+
+// Response message for the GetRequest
+message GetResponse {
+    string value = 1;    // The value associated with the key
+    bool found = 2;      // Indicates if the key was found
+}
+
+// Request message for deleting a key-value pair
+message DeleteRequest {
+    string key = 1;      // The key to delete
+}
+
+// Response message for the DeleteRequest
+message DeleteResponse {
+    bool success = 1;    // Indicates if the deletion was successful
+}
