@@ -1,6 +1,7 @@
 #include <unordered_map>
 #include <string_view>
 #include <string>
+#include <optional>
 
 class HashMap
 {
@@ -10,5 +11,5 @@ public:
 
     HashMap(std::string_view filename);
     void insert(const std::string &key, const std::string &value);
-    std::string get(const std::string &key);
+    std::optional<std::string> get(const std::string &key);
 };

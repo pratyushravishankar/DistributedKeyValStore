@@ -27,7 +27,14 @@ void HashMap::insert(const std::string &key, const std::string &value)
     kv_store[key] = value;
 }
 
-std::string HashMap::get(const std::string &key)
+std::optional<std::string> HashMap::get(const std::string &key)
 {
-    return kv_store[key];
+    if (auto it = kv_store.find(key); it != kv_store.end())
+    {
+        return it->second;
+    }
+    else
+    {
+        return std::nullopt;
+    }
 }

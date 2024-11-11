@@ -2,6 +2,13 @@ syntax = "proto3";
 
 package hashmap;
 
+
+service HashmapService {
+    rpc Put(PutRequest) returns (PutResponse);
+    rpc Get(GetRequest) returns (GetResponse);
+    rpc Delete(DeleteRequest) returns (DeleteResponse);
+}
+
 // Message to represent a key-value pair
 message KeyValue {
     string key = 1;      // The key in the hashmap
