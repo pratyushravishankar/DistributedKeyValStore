@@ -2,7 +2,10 @@
 #include <iostream>
 #include <unordered_map>
 
-#include <grpcpp/grpcpp.h>
+void RunServer(uint16_t port)
+{
+    std::string server_address = "0.0.0.0:" + std::to_string(port);
+}
 
 int main()
 {
