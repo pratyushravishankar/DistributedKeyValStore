@@ -1,4 +1,4 @@
-#include "HashMap.h"
+#include "PartitionedHashMap.h"
 #include <iostream>
 #include <unordered_map>
 #include "hashmap.pb.h"
@@ -14,7 +14,7 @@ using hashmap::PutResponse;
 class HashMapServiceImpl final : public hashmap::HashmapService::Service
 {
 public:
-    HashMapServiceImpl(const std::string &filename) : map{filename}
+    HashMapServiceImpl(const std::string &filename, size_t numPartitions) : map{filename, numPartitions}
     {
         std::cout << "loaded data from " << filename << std::endl;
     };
@@ -59,13 +59,13 @@ public:
     }
 
 private:
-    HashMap map;
+    PartitionedHashMap map;
 };
 
 void RunServer(uint16_t port)
 {
     std::string server_address = "0.0.0.0:" + std::to_string(port);
-    HashMapServiceImpl service{"data/initial_data.txt"};
+    HashMapServiceImpl service{"data/initial_data.txt", 4};
     ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
 

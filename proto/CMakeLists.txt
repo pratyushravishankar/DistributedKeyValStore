@@ -16,6 +16,10 @@ message(STATUS "Using protobuf ${Protobuf_VERSION}")
 find_package(gRPC CONFIG REQUIRED)
 message(STATUS "Using gRPC ${gRPC_VERSION}")
 
+find_package(absl REQUIRED)
+
+# find_package(Abseil REQUIRED)
+
 # Specify the .proto files
 set(PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/hashmap.proto)
 
