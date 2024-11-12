@@ -6,6 +6,8 @@
 using grpc::Channel;
 using grpc::ClientContext;
 using grpc::Status;
+using hashmap::EraseRequest;
+using hashmap::EraseResponse;
 using hashmap::GetRequest;
 using hashmap::GetResponse;
 using hashmap::HashmapService;
@@ -67,8 +69,21 @@ public:
         }
         else
         {
-            return "something has gone wrong!";
+            std::cout << "Error: " << status.error_code() << ": " << status.error_message() << std::endl;
+            return std::nullopt;
         }
+    }
+
+    bool erase(const std::string &key)
+    {
+
+        EraseRequest request;
+        request.set_key(key);
+        EraseResponse response;
+        ClientContext context;
+
+        Status status = stub_->Erase(&context, request, &response);
+        return response.success();
     }
 
 private:
@@ -84,8 +99,8 @@ int main()
 
     HashMapClient client{
         grpc::CreateChannel(target, grpc::InsecureChannelCredentials())};
-    // auto reply = client.insert("vronsky", "adam");
-    // std::cout << "insert success " << reply << std::endl;
+    auto reply = client.insert("vronsky", "adam");
+    std::cout << "insert success " << reply << std::endl;
 
     auto maybeValue = client.get("cat");
     if (maybeValue)
@@ -96,4 +111,7 @@ int main()
     {
         std::cout << "value doesn't exist" << std::endl;
     }
+
+    auto success = client.erase("vronsky");
+    std::cout << "Erasing sucess: " << success << std::endl;
 }

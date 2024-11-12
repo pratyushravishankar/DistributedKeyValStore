@@ -12,4 +12,5 @@ public:
     HashMap(std::string_view filename);
     void insert(const std::string &key, const std::string &value);
     std::optional<std::string> get(const std::string &key);
+    bool erase(const std::string& key);
 };

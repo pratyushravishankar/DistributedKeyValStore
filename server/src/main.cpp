@@ -16,11 +16,7 @@ class HashMapServiceImpl final : public hashmap::HashmapService::Service
 public:
     HashMapServiceImpl(const std::string &filename) : map{filename}
     {
-
-        for (const auto &[k, v] : map.kv_store)
-        {
-            std::cout << k << " -> " << v << std::endl;
-        }
+        std::cout << "loaded data from " << filename << std::endl;
     };
 
     ::grpc::Status Put(::grpc::ServerContext *context, const ::hashmap::PutRequest *request, ::hashmap::PutResponse *response)
@@ -37,13 +33,8 @@ public:
 
     ::grpc::Status Get(::grpc::ServerContext *context, const ::hashmap::GetRequest *request, ::hashmap::GetResponse *response)
     {
-
-        for (auto &[k, v] : map.kv_store)
-        {
-            std::cout << "k: " << k << " v: " << v << std::endl;
-        }
-
         auto key = request->key();
+        std::cout << "finding key: " << key << std::endl;
         auto maybeValue = map.get(key);
         if (maybeValue)
         {
@@ -58,8 +49,12 @@ public:
         return ::grpc::Status::OK;
     }
 
-    ::grpc::Status Delete(::grpc::ServerContext *context, const ::hashmap::DeleteRequest *request, ::hashmap::DeleteResponse *response)
+    ::grpc::Status Erase(::grpc::ServerContext *context, const ::hashmap::EraseRequest *request, ::hashmap::EraseResponse *response)
     {
+        auto k = request->key();
+        std::cout << "erasing key: " << k << std::endl;
+        auto success = map.erase(k);
+        response->set_success(success);
         return ::grpc::Status::OK;
     }
 

@@ -38,3 +38,8 @@ std::optional<std::string> HashMap::get(const std::string &key)
         return std::nullopt;
     }
 }
+
+bool HashMap::erase(const std::string &key)
+{
+    return kv_store.erase(key) > 0;
+}
