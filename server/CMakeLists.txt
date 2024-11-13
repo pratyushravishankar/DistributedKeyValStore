@@ -3,5 +3,4 @@ add_executable(server src/main.cpp src/PartitionedHashMap.cpp src/HashMap.cpp)
 target_link_libraries(server
     PRIVATE
     proto_library
-    ${Protobuf_LIBRARIES}
 )

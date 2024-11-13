@@ -3,36 +3,39 @@ project(ProtoProject)
 
 set(CMAKE_CXX_STANDARD 23)
 
-# if(DEFINED ENV{MY_INSTALL_DIR})
-#     set(CMAKE_PREFIX_PATH $ENV{MY_INSTALL_DIR})
-# else()
-#     message(WARNING "MY_INSTALL_DIR is not set. Using default path.")
-#     set(CMAKE_PREFIX_PATH "/usr/local/lib")
-# endif()
-
-find_package(Protobuf CONFIG REQUIRED)
-message(STATUS "Using protobuf ${Protobuf_VERSION}")
-
-find_package(gRPC CONFIG REQUIRED)
-message(STATUS "Using gRPC ${gRPC_VERSION}")
-
-find_package(absl REQUIRED)
-
-# find_package(Abseil REQUIRED)
-
 # Specify the .proto files
 set(PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/hashmap.proto)
 
-add_library(proto_library ${PROTO_FILES})
-get_target_property(grpc_cpp_plugin_location gRPC::grpc_cpp_plugin LOCATION)
-protobuf_generate(TARGET proto_library LANGUAGE cpp)
-protobuf_generate(TARGET proto_library LANGUAGE grpc GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc PLUGIN "protoc-gen-grpc=${grpc_cpp_plugin_location}")
+# Add proto_library target
+add_library(proto_library)
 
-# Include the Protobuf include directories
-target_include_directories(proto_library PUBLIC ${Protobuf_INCLUDE_DIRS} ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(proto_library PUBLIC protobuf::libprotobuf gRPC::grpc++ gRPC::grpc)
+# Use system-installed protoc and grpc_cpp_plugin
+find_program(_PROTOBUF_PROTOC protoc REQUIRED)
+find_program(_GRPC_CPP_PLUGIN grpc_cpp_plugin REQUIRED)
 
-message(STATUS "PROTO_SRCS: ${PROTO_SRCS}")
-message(STATUS "PROTO_HDRS: ${PROTO_HDRS}")
+# Generate Protobuf and gRPC files
+set(GENERATED_FILES_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
+add_custom_command(
+    OUTPUT ${GENERATED_FILES_DIR}/hashmap.pb.cc ${GENERATED_FILES_DIR}/hashmap.pb.h
+    COMMAND ${_PROTOBUF_PROTOC} --cpp_out=${GENERATED_FILES_DIR} -I ${CMAKE_CURRENT_SOURCE_DIR} ${PROTO_FILES}
+    DEPENDS ${PROTO_FILES}
+)
 
+add_custom_command(
+    OUTPUT ${GENERATED_FILES_DIR}/hashmap.grpc.pb.cc ${GENERATED_FILES_DIR}/hashmap.grpc.pb.h
+    COMMAND ${_PROTOBUF_PROTOC} --grpc_out=${GENERATED_FILES_DIR} --plugin=protoc-gen-grpc=${_GRPC_CPP_PLUGIN} -I ${CMAKE_CURRENT_SOURCE_DIR} ${PROTO_FILES}
+    DEPENDS ${PROTO_FILES}
+)
+
+# Add the generated files to proto_library
+target_sources(proto_library PRIVATE
+    ${GENERATED_FILES_DIR}/hashmap.pb.cc
+    ${GENERATED_FILES_DIR}/hashmap.grpc.pb.cc
+)
+
+# Include generated headers
+target_include_directories(proto_library PUBLIC ${GENERATED_FILES_DIR})
+
+# Link against gRPC and Protobuf targets
+target_link_libraries(proto_library PUBLIC protobuf::libprotobuf gRPC::grpc++)
