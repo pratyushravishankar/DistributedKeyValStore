@@ -3,10 +3,10 @@
 #include <unordered_map>
 #include "HashMap.h"
 
-HashMap::HashMap(std::string_view filename)
+HashMap::HashMap(std::string_view name) : mName{name}
 {
     // Load initial data from file
-    std::ifstream input_file(filename);
+    std::ifstream input_file(mFileName);
     if (input_file.is_open())
     {
         std::string key, value;

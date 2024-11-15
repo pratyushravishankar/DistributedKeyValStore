@@ -14,10 +14,8 @@ using hashmap::PutResponse;
 class HashMapServiceImpl final : public hashmap::HashmapService::Service
 {
 public:
-    HashMapServiceImpl(const std::string &filename, size_t numPartitions) : map{filename, numPartitions}
-    {
-        std::cout << "loaded data from " << filename << std::endl;
-    };
+    HashMapServiceImpl(std::string_view name, size_t numPartitions) : map{name, numPartitions}
+    {};
 
     ::grpc::Status Put(::grpc::ServerContext *context, const ::hashmap::PutRequest *request, ::hashmap::PutResponse *response)
     {
@@ -65,7 +63,7 @@ private:
 void RunServer(uint16_t port)
 {
     std::string server_address = "0.0.0.0:" + std::to_string(port);
-    HashMapServiceImpl service{"data/initial_data.txt", 4};
+    HashMapServiceImpl service{"SERVERONE", 4};
     ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
 
