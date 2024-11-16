@@ -49,10 +49,6 @@ TEST_F(ConsistentHashingTest, RemoveNodesRebalancing) {
 
     
     consistentHashing.removeNode("a");
-    std::cout << "size: " << hmToReceive.kv_store.size() << std::endl;
-    for (auto& [k, v] : hmToReceive.kv_store) {
-        std::cout << "k: " << k << " v: " << v << std::endl;
-    }
 
     // TODO currently doesn't hold as map reads from disk extra values - prevent test reading from file or read empty disk
     // EXPECT_TRUE(hmToReceive.kv_store.size() == 6);
@@ -63,6 +59,23 @@ TEST_F(ConsistentHashingTest, RemoveNodesRebalancing) {
     EXPECT_TRUE(hmToReceive.get("soo"));
     EXPECT_TRUE(hmToReceive.get("sar"));
     EXPECT_TRUE(hmToReceive.get("soosar"));
+}
+
+TEST_F(ConsistentHashingTest, RemoveEndNodeRebalancingClockwise) {
+
+    //setup - add values to end node before deleting node
+    auto& hmToDelete = consistentHashing.findNode("g");
+    hmToDelete.insert("foo", "val");
+    hmToDelete.insert("bar", "val2");
+    // setup end
+    consistentHashing.removeNode("g");
+
+    // TODO currently doesn't hold as map reads from disk extra values - prevent test reading from file or read empty disk
+    // EXPECT_TRUE(hmToReceive.kv_store.size() == 2);
+    auto& hmToReceive = consistentHashing.findNode("a");
+
+    EXPECT_TRUE(hmToReceive.get("foo"));
+    EXPECT_TRUE(hmToReceive.get("bar"));
 }
 
 

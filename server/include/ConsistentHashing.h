@@ -30,7 +30,6 @@ public:
     // testing purposes
     ConsistentHashing(std::vector<HashMap>&& virtualNodes) {
         for (auto&& v : virtualNodes) {
-            std::cout << "hashing bins" << hashingfunc(v.mName) << std::endl;
             hashring.emplace(hashingfunc(v.mName), std::move(v));
         }
     }
