@@ -7,6 +7,9 @@ service HashmapService {
     rpc Put(PutRequest) returns (PutResponse);
     rpc Get(GetRequest) returns (GetResponse);
     rpc Erase(EraseRequest) returns (EraseResponse);
+    rpc ForwardedPut(ForwardPutRequest) returns (ForwardPutResponse);
+    rpc ForwardedGet(ForwardGetRequest) returns (ForwardGetResponse);
+    rpc ForwardedErase(ForwardEraseRequest) returns (ForwardEraseResponse);
 }
 
 // Message to represent a key-value pair
@@ -44,4 +47,35 @@ message EraseRequest {
 // Response message for the DeleteRequest
 message EraseResponse {
     bool success = 1;    // Indicates if the deletion was successful
+}
+
+// Request message for forwarding a Get request to another server
+message ForwardGetRequest {
+    string key = 1; // The key to retrieve
+}
+
+// Response message for the ForwardGetRequest
+message ForwardGetResponse {
+    string value = 1; // The value associated with the key
+    bool found = 2;   // Indicates if the key was found
+}
+
+// Request message for forwarding a Put request to another server
+message ForwardPutRequest {
+    KeyValue kv = 1; // The key-value pair to add or update
+}
+
+// Response message for the ForwardPutRequest
+message ForwardPutResponse {
+    bool success = 1; // Indicates if the operation was successful
+}
+
+// Request message for forwarding an Erase request to another server
+message ForwardEraseRequest {
+    string key = 1; // The key to delete
+}
+
+// Response message for the ForwardEraseRequest
+message ForwardEraseResponse {
+    bool success = 1; // Indicates if the deletion was successful
 }

@@ -10,7 +10,7 @@ private:
     int mNumPartitions;
     std::map<size_t, HashMap> hashring;
     HashingFunc hashingfunc;
-
+    
     void rebalance(const HashMap& mapFrom, HashMap& mapTo) const {
         // Rebalance the key-value pairs from mapFrom to mapTo
         for (auto& [k, v] : mapFrom.kv_store) {
@@ -23,7 +23,7 @@ public:
     ConsistentHashing(std::string_view namePrefix, size_t numPartitions)
         : mNumPartitions(numPartitions) {
         for (size_t i = 0; i < numPartitions; i++) {
-            addNode(std::string(namePrefix) + std::to_string(i));
+            addNode(std::string(namePrefix) + "#" + std::to_string(i));
         }
     }
 

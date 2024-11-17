@@ -100,9 +100,11 @@ int main()
     HashMapClient client{
         grpc::CreateChannel(target, grpc::InsecureChannelCredentials())};
     auto reply = client.insert("vronsky", "adam");
+
     std::cout << "insert success " << reply << std::endl;
 
-    auto maybeValue = client.get("cat");
+
+    auto maybeValue = client.get("vronsky");
     if (maybeValue)
     {
         std::cout << "value found : " << *maybeValue << std::endl;
