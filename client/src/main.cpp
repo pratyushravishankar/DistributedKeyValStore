@@ -1,7 +1,10 @@
 #include <iostream>
 
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/create_channel.h>
+#include <grpcpp/support/channel_arguments.h>
 #include "hashmap.grpc.pb.h"
+#include "Config.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -93,10 +96,14 @@ private:
 int main()
 {
 
-    const std::string target = "localhost:50051";
+    const auto& config = ClientConfigManager::getInstance();
+    grpc::ChannelArguments args;
+    args.SetLoadBalancingPolicyName("round_robin"); // Enable round-robin load balancing
 
-    HashMapClient client{
-        grpc::CreateChannel(target, grpc::InsecureChannelCredentials())};
+    // Create a gRPC channel
+    auto channel = grpc::CreateCustomChannel(config.serverAddresses, grpc::InsecureChannelCredentials(), args);    
+    HashMapClient client{channel};
+
     auto reply = client.insert("vronsky", "adam");
 
     std::cout << "insert success " << reply << std::endl;

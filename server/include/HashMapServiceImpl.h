@@ -15,10 +15,27 @@ using hashmap::ForwardPutResponse;
 using hashmap::ForwardGetResponse;
 using hashmap::ForwardEraseResponse;
 
+
+class HashRingManager {
+public:
+    static const ConsistentHashing<std::hash<std::string>>& getInstance(const ServerConfig& config) {
+        static ConsistentHashing<std::hash<std::string>> instance = buildHashRing(config);
+        return instance;
+    }
+private:
+    static ConsistentHashing<std::hash<std::string>> buildHashRing(const ServerConfig& config) {
+        std::vector<std::string> serverNames;
+        for (const auto& [serverName, _] : config.serverAddresses) {
+            serverNames.push_back(serverName);
+        }
+        return ConsistentHashing<std::hash<std::string>>(serverNames, /* virtualNodes */ 4);
+    }
+};
+
 class HashMapServiceImpl : public hashmap::HashmapService::Service
 {
 public:
-    HashMapServiceImpl(const ServerConfig& config, std::string_view name, size_t numPartitions) : mName{name} ,mConfig{config}, mLocalMap{numPartitions}, mConsistentHashing(buildHashRing(config)) 
+    HashMapServiceImpl(const ServerConfig& config, std::string_view name, size_t numPartitions) : mName{name} ,mConfig{config}, mLocalMap{numPartitions}, mConsistentHashing(HashRingManager::getInstance(config)) 
     {
         // Initialize stubs for other servers
         for (const auto& [serverName, serverAddress] : config.serverAddresses) {
@@ -172,14 +189,6 @@ private:
     void copyKV(const auto& from, auto& to) {
         to.set_key(from.key());
         to.set_value(from.value());
-    }
-
-    static ConsistentHashing<std::hash<std::string>> buildHashRing(const ServerConfig& config) {
-        std::vector<std::string> serverNames;
-        for (const auto& [serverName, _] : config.serverAddresses) {
-            serverNames.push_back(serverName);
-        }
-        return ConsistentHashing<std::hash<std::string>>(serverNames, /* virtualNodes */ 4);
     }
 
     std::string_view mName;

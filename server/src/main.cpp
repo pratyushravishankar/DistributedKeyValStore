@@ -39,12 +39,7 @@ ServerWithService createServer(uint16_t port,
 
 
 void startServers() {
-    ServerConfig config;
-    config.serverAddresses = {
-        {"S1", "0.0.0.0:50051"},
-        {"S2", "0.0.0.0:50052"},
-        {"S3", "0.0.0.0:50053"}
-    };
+    const auto& config = ServerConfigManager::getInstance();
 
     std::vector<std::thread> serverThreads;
 
