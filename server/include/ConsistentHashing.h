@@ -7,63 +7,47 @@
 template<typename HashingFunc>
 class ConsistentHashing {
 private:
-    int mNumPartitions;
-    std::map<size_t, HashMap> hashring;
+    std::map<size_t, std::string> hashring; // Map of hash to server name
     HashingFunc hashingfunc;
-    
-    void rebalance(const HashMap& mapFrom, HashMap& mapTo) const {
-        // Rebalance the key-value pairs from mapFrom to mapTo
-        for (auto& [k, v] : mapFrom.kv_store) {
-            mapTo.insert(k, v);
-        }
-    }
 
 public:
     // Constructor
-    ConsistentHashing(std::string_view namePrefix, size_t numPartitions)
-        : mNumPartitions(numPartitions) {
-        for (size_t i = 0; i < numPartitions; i++) {
-            addNode(std::string(namePrefix) + "#" + std::to_string(i));
+    ConsistentHashing(const std::vector<std::string>& serverNames, size_t virtualNodes = 1) {
+        for (const auto& name : serverNames) {
+            addNode(name, virtualNodes);
         }
     }
 
-    // testing purposes
-    ConsistentHashing(std::vector<HashMap>&& virtualNodes) {
-        for (auto&& v : virtualNodes) {
-            hashring.emplace(hashingfunc(v.mName), std::move(v));
+    // Add a server to the hash ring with virtual nodes
+    void addNode(const std::string& serverName, size_t virtualNodes = 1) {
+        for (size_t i = 0; i < virtualNodes; ++i) {
+            std::string virtualNodeName = serverName + "#" + std::to_string(i);
+            size_t hash = hashingfunc(virtualNodeName);
+            hashring[hash] = serverName; // Map hash to server name
         }
     }
 
-    // Add a node to the hash ring
-    void addNode(const std::string& name) {
-        auto hash = hashingfunc(name); // Use the injected hash function
-        std::cout << "constructing " << name << std::endl;
-        hashring.emplace(hash, HashMap(name));
+    // Remove a server from the hash ring
+    void removeNode(const std::string& serverName, size_t virtualNodes = 1) {
+        for (size_t i = 0; i < virtualNodes; ++i) {
+            std::string virtualNodeName = serverName + "#" + std::to_string(i);
+            size_t hash = hashingfunc(virtualNodeName);
+            hashring.erase(hash);
+        }
     }
 
-    // Remove a node from the hash ring
-    void removeNode(const std::string& name) {
-        auto hash = hashingfunc(name);
-        auto it = hashring.find(hash);
+    // Find the server responsible for a given key
+    std::string findServer(const std::string& key) {
+        size_t hash = hashingfunc(key);
+        auto it = hashring.lower_bound(hash);
+        std::string serverName;
         if (it == hashring.end()) {
-            return; // node doesn't exist!
+            serverName = hashring.begin()->second;
+        } else {
+            serverName =  it->second;
         }
-        auto& mapFrom = it->second;
-        auto nextIt = std::next(it);
-        auto& mapTo = (nextIt == hashring.end()) ? hashring.begin()->second : nextIt->second;
-        rebalance(mapFrom, mapTo);
-        hashring.erase(it);
+        std::cout << std::endl;
+        std::cout << "key{ " << key << " } " << " found on server { " << serverName << " }" << std::endl;
+        return serverName;
     }
-
-    // Find the node corresponding to a given key
-HashMap& findNode(const std::string& key) {
-    auto hash = hashingfunc(key);
-    auto it = hashring.lower_bound(hash);
-    if (it == hashring.end()) {
-        return hashring.begin()->second;
-    } else {
-        return it->second;
-    }
-}
-
 };

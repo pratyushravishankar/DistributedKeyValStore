@@ -93,8 +93,6 @@ private:
 int main()
 {
 
-    // std::cout << "im the client and don't do anything";
-
     const std::string target = "localhost:50051";
 
     HashMapClient client{
@@ -103,17 +101,33 @@ int main()
 
     std::cout << "insert success " << reply << std::endl;
 
+    client.insert("zebra", "marty");
 
-    auto maybeValue = client.get("vronsky");
-    if (maybeValue)
-    {
-        std::cout << "value found : " << *maybeValue << std::endl;
-    }
-    else
-    {
-        std::cout << "value doesn't exist" << std::endl;
-    }
+    auto find = [&](const std::string& key) {
+        auto maybeValue = client.get(key);
+        if (maybeValue)
+        {
+            std::cout << "value found : " << *maybeValue << std::endl;
+        }
+        else
+        {
+            std::cout << "value { " << key << " } doesn't exist" << std::endl;
+        }
+    };
+
+    find("cat");
+    find("dog");
+    find("gorilla");
+    find("llama");
+    find("monkey");
+    find("giraffe");
+    find("zebra");
+
+
+
+
 
     auto success = client.erase("vronsky");
+    client.erase("llama");
     std::cout << "Erasing sucess: " << success << std::endl;
 }

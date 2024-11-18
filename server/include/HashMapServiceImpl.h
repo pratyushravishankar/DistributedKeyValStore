@@ -1,6 +1,8 @@
 #include "hashmap.pb.h"
 #include "hashmap.grpc.pb.h"
 #include "StubManager.h"
+#include "PartitionedHashMap.h"
+#include "ConsistentHashing.h"
 
 
 #include "Config.h"
@@ -16,7 +18,7 @@ using hashmap::ForwardEraseResponse;
 class HashMapServiceImpl : public hashmap::HashmapService::Service
 {
 public:
-    HashMapServiceImpl(ServerConfig config, std::string_view name, size_t numPartitions) : mName{name}, map{name, numPartitions}
+    HashMapServiceImpl(const ServerConfig& config, std::string_view name, size_t numPartitions) : mName{name} ,mConfig{config}, mLocalMap{numPartitions}, mConsistentHashing(buildHashRing(config)) 
     {
         // Initialize stubs for other servers
         for (const auto& [serverName, serverAddress] : config.serverAddresses) {
@@ -28,25 +30,23 @@ public:
 
     ::grpc::Status Put(::grpc::ServerContext *context, const ::hashmap::PutRequest *request, ::hashmap::PutResponse *response)
     {
-        if (keyHashedHere(request->kv().key())) {
+        const auto key = request->kv().key();
+        const auto serverName = mConsistentHashing.findServer(key);
+        if (serverName == mName) {
             return put(context, request, response);
         } else {
-            auto stub = stubManager.getStub("S3");
-
-
+        
+            auto stub = stubManager.getStub(serverName);
             ForwardPutRequest forwardRequest;
 
-            auto* kv = forwardRequest.mutable_kv();
-            auto& kvPut = request->kv();
-            kv->set_key(kvPut.key());
-            kv->set_value(kvPut.value());
+            copyKV(request->kv(), *(forwardRequest.mutable_kv()));
             
 
             ForwardPutResponse forwardResponse;
 
             ClientContext clientContext;
 
-            std::cout << "fowarding PUT from " << mName << " --> " << "S3" << std::endl;
+            std::cout << "fowarding PUT from " << mName << " --> " << serverName << std::endl;
             auto res = stub->ForwardedPut(&clientContext, forwardRequest, &forwardResponse);
             response->set_success(forwardResponse.success());
             return res;
@@ -55,18 +55,20 @@ public:
 
     ::grpc::Status Get(::grpc::ServerContext *context, const ::hashmap::GetRequest *request, ::hashmap::GetResponse *response)
     {
-       if (keyHashedHere(request->key())) {
+        const auto key = request->key();
+        const auto serverName = mConsistentHashing.findServer(key);
+        if (serverName == mName) {
             return get(context, request, response);
         } else {
-            auto stub = stubManager.getStub("S3");
+            auto stub = stubManager.getStub(serverName);
             ForwardGetRequest forwardRequest;
-            forwardRequest.set_key(request->key());
+            forwardRequest.set_key(key);
 
             ForwardGetResponse forwardResponse;
 
             ClientContext clientContext;
 
-            std::cout << "fowarding GET from " << mName << " --> " << "S3" << std::endl;
+            std::cout << "fowarding GET from " << mName << " --> " << serverName << std::endl;
             auto res =  stub->ForwardedGet(&clientContext, forwardRequest, &forwardResponse);
             response->set_value(forwardResponse.value());
             response->set_found(forwardResponse.found());
@@ -76,18 +78,20 @@ public:
 
     ::grpc::Status Erase(::grpc::ServerContext *context, const ::hashmap::EraseRequest *request, ::hashmap::EraseResponse *response)
     {
-       if (keyHashedHere(request->key())) {
+        const auto key = request->key();
+        const auto serverName = mConsistentHashing.findServer(key);
+        if (serverName == mName) {
             return erase(context, request, response);
         } else {
-            auto stub = stubManager.getStub("S3");
+            auto stub = stubManager.getStub(serverName);
             ForwardEraseRequest forwardRequest;
-            forwardRequest.set_key(request->key());
+            forwardRequest.set_key(key);
 
             ForwardEraseResponse forwardResponse;
             
             ClientContext clientContext;
 
-            std::cout << "fowarding ERASE from " << mName << " --> " << "S3" << std::endl;
+            std::cout << "fowarding ERASE from " << mName << " --> " << serverName << std::endl;
             auto res = stub->ForwardedErase(&clientContext, forwardRequest, &forwardResponse);
             response->set_success(forwardResponse.success());
             return res;
@@ -115,12 +119,11 @@ public:
     template<typename Req_, typename Resp_>
     ::grpc::Status put(::grpc::ServerContext *context, const Req_ *request, Resp_ *response) {
         auto& kv = request->kv();
-
-        auto k = kv.key();
-        auto v = kv.value();
+        const auto& k = kv.key();
+        const auto& v = kv.value();
 
         std::cout << "{ " << mName << " } " << "inserting key: " << k << " value: " << v << std::endl;
-        map.insert(kv.key(), kv.value());
+        mLocalMap.insert(kv.key(), kv.value());
         return ::grpc::Status::OK;
     }
 
@@ -128,9 +131,9 @@ public:
     template<typename Req_, typename Resp_>
     ::grpc::Status get(::grpc::ServerContext *context, const Req_ *request, Resp_ *response)
     {
-        auto key = request->key();
+        const auto& key = request->key();
         std::cout << "{ " << mName << " } " << "finding key: " << key << std::endl;
-        auto maybeValue = map.get(key);
+        auto maybeValue = mLocalMap.get(key);
         if (maybeValue)
         {
             std::cout << "key{ " << key << " } found - value{ " << *maybeValue << " }" << std::endl;
@@ -140,7 +143,6 @@ public:
         else
         {
             std::cout << "key { " << key << "} not found" << std::endl;
-            response->set_value("");
             response->set_found(false);
         }
         return ::grpc::Status::OK;
@@ -149,19 +151,40 @@ public:
     template<typename Req_, typename Resp_>
     ::grpc::Status erase(::grpc::ServerContext *context, const Req_ *request, Resp_ *response)
     {
-        auto k = request->key();
+        const auto& k = request->key();
         std::cout << "{ " << mName << " } " << "erasing key: " << k << std::endl;
-        auto success = map.erase(k);
+        const auto success = mLocalMap.erase(k);
+
+        if (success) {
+            std::cout << "{ " << mName << " } " << "sucessfully erased " << k << std::endl;
+        } else {
+            std::cout << "{ " << mName << " } " << "failed to erase " << k << std::endl;
+        }
+
         response->set_success(success);
         return ::grpc::Status::OK;
     }
 
-    bool keyHashedHere(std::string_view) {
-        return false;
-    }
+
 
 private:
-    PartitionedHashMap map;
+
+    void copyKV(const auto& from, auto& to) {
+        to.set_key(from.key());
+        to.set_value(from.value());
+    }
+
+    static ConsistentHashing<std::hash<std::string>> buildHashRing(const ServerConfig& config) {
+        std::vector<std::string> serverNames;
+        for (const auto& [serverName, _] : config.serverAddresses) {
+            serverNames.push_back(serverName);
+        }
+        return ConsistentHashing<std::hash<std::string>>(serverNames, /* virtualNodes */ 4);
+    }
+
     std::string_view mName;
+    PartitionedHashMap mLocalMap;
+    const ServerConfig& mConfig;
+    ConsistentHashing<std::hash<std::string>> mConsistentHashing;
     ServerStubManager stubManager;
 };

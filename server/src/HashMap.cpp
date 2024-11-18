@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include "HashMap.h"
 
-HashMap::HashMap(std::string_view name) : mName{name}
+HashMap::HashMap()
 {
     // Load initial data from file
     std::ifstream input_file(mFileName);
@@ -24,11 +24,13 @@ HashMap::HashMap(std::string_view name) : mName{name}
 
 void HashMap::insert(const std::string &key, const std::string &value)
 {
+    std::lock_guard<std::mutex> lock(mMutex);
     kv_store[key] = value;
 }
 
 std::optional<std::string> HashMap::get(const std::string &key)
 {
+    std::lock_guard<std::mutex> lock(mMutex);
     if (auto it = kv_store.find(key); it != kv_store.end())
     {
         return it->second;
@@ -41,5 +43,6 @@ std::optional<std::string> HashMap::get(const std::string &key)
 
 bool HashMap::erase(const std::string &key)
 {
+    std::lock_guard<std::mutex> lock(mMutex);
     return kv_store.erase(key) > 0;
 }
