@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <unordered_set>
 #include <iostream>
 #include "HashMap.h"
 
@@ -12,7 +13,7 @@ private:
 
 public:
     // Constructor
-    ConsistentHashing(const std::vector<std::string>& serverNames, size_t virtualNodes = 1) {
+    ConsistentHashing(const std::unordered_set<std::string>& serverNames, size_t virtualNodes = 1) {
         for (const auto& name : serverNames) {
             addNode(name, virtualNodes);
         }
@@ -36,18 +37,18 @@ public:
         }
     }
 
-    // Find the server responsible for a given key
-    std::string findServer(const std::string& key) {
+    // Find the shard responsible for a given key
+    std::string findShard(const std::string& key) {
         size_t hash = hashingfunc(key);
         auto it = hashring.lower_bound(hash);
-        std::string serverName;
+        std::string shardName;
         if (it == hashring.end()) {
-            serverName = hashring.begin()->second;
+            shardName = hashring.begin()->second;
         } else {
-            serverName =  it->second;
+            shardName =  it->second;
         }
         std::cout << std::endl;
-        std::cout << "key{ " << key << " } " << " found on server { " << serverName << " }" << std::endl;
-        return serverName;
+        std::cout << "key{ " << key << " } " << " found on shard { " << shardName << " }" << std::endl;
+        return shardName;
     }
 };

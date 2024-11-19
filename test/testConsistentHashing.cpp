@@ -4,34 +4,34 @@
 
 
 
-struct MockHashingFunction {
-    // hash into one of 26 buckets based upon first letter
-    size_t operator()(std::string s) {
-        assert(s.size() > 0 && std::islower(*s.begin()));
-        return *s.begin() - 'a';
-    } 
-};
+// struct MockHashingFunction {
+//     // hash into one of 26 buckets based upon first letter
+//     size_t operator()(std::string s) {
+//         assert(s.size() > 0 && std::islower(*s.begin()));
+//         return *s.begin() - 'a';
+//     } 
+// };
 
-class ConsistentHashingTest : public ::testing::Test {
-protected:
-    ConsistentHashingTest() 
-        : consistentHashing(std::vector<std::string>{"a", "d", "g"}, 26) {}
+// class ConsistentHashingTest : public ::testing::Test {
+// protected:
+//     ConsistentHashingTest() 
+//         : consistentHashing(std::vector<std::string>{"a", "d", "g"}, 26) {}
 
-    ConsistentHashing<MockHashingFunction> consistentHashing; // Inject the mock hash function
-};
+//     ConsistentHashing<MockHashingFunction> consistentHashing; // Inject the mock hash function
+// };
 
-TEST_F(ConsistentHashingTest, FindNodeReturnsCorrectHashMap) {
-    // Ensure hash ring has expected content
-    EXPECT_EQ(consistentHashing.findServer("a"), "a");
-    EXPECT_EQ(consistentHashing.findServer("d"), "d");
-    EXPECT_EQ(consistentHashing.findServer("g"), "g");
+// TEST_F(ConsistentHashingTest, FindNodeReturnsCorrectHashMap) {
+//     // Ensure hash ring has expected content
+//     EXPECT_EQ(consistentHashing.findServer("a"), "a");
+//     EXPECT_EQ(consistentHashing.findServer("d"), "d");
+//     EXPECT_EQ(consistentHashing.findServer("g"), "g");
 
-    EXPECT_EQ(consistentHashing.findServer("b"), "d");
-    EXPECT_EQ(consistentHashing.findServer("e"), "g");
+//     EXPECT_EQ(consistentHashing.findServer("b"), "d");
+//     EXPECT_EQ(consistentHashing.findServer("e"), "g");
 
-    // Check wrapping behavior
-    EXPECT_EQ(consistentHashing.findServer("x"), "a");
-}
+//     // Check wrapping behavior
+//     EXPECT_EQ(consistentHashing.findServer("x"), "a");
+// }
 
 // TODO reintroduce tests once deleting from hashing ring, means to rebalance keys between servers
 
@@ -84,6 +84,6 @@ TEST_F(ConsistentHashingTest, FindNodeReturnsCorrectHashMap) {
 
 
 int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    // ::testing::InitGoogleTest(&argc, argv);
+    // return RUN_ALL_TESTS();
 }

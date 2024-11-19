@@ -6,6 +6,7 @@
 
 
 #include "Config.h"
+#include <ostream>
 using grpc::Status;
 using grpc::ClientContext;
 using hashmap::ForwardEraseRequest;
@@ -24,35 +25,57 @@ public:
     }
 private:
     static ConsistentHashing<std::hash<std::string>> buildHashRing(const ServerConfig& config) {
-        std::vector<std::string> serverNames;
-        for (const auto& [serverName, _] : config.serverAddresses) {
-            serverNames.push_back(serverName);
-        }
-        return ConsistentHashing<std::hash<std::string>>(serverNames, /* virtualNodes */ 4);
+        return ConsistentHashing<std::hash<std::string>>(config.getShards(), /* virtualNodes */ 4);
     }
 };
+
+class Shards {
+public:
+    std::string getLeader(const std::string& shardName) {
+        return shardToLeader.at(shardName);
+    }
+    
+    void updateLeader(const std::string& shardName, const std::string& serverName) {
+        shardToLeader[shardName] = serverName;
+    }
+
+private:
+    std::map<std::string, std::string> shardToLeader;
+};
+
+
+
+std::ostream& operator<<(std::ostream& os, const ServerInfo& si) {
+    return os << "[ " << si.shard << " " << si.name << " ]"; // Added << before si.mServer
+}   
+
+
 
 class HashMapServiceImpl : public hashmap::HashmapService::Service
 {
 public:
-    HashMapServiceImpl(const ServerConfig& config, std::string_view name, size_t numPartitions) : mName{name} ,mConfig{config}, mLocalMap{numPartitions}, mConsistentHashing(HashRingManager::getInstance(config)) 
+    HashMapServiceImpl(const ServerInfo& serverInfo, size_t numPartitions, const ServerConfig& config) : mInfo{serverInfo} ,mConfig{config}, mLocalMap{numPartitions}, mConsistentHashing(HashRingManager::getInstance(config)) 
     {
         // Initialize stubs for other servers
-        for (const auto& [serverName, serverAddress] : config.serverAddresses) {
-            if (serverName != name) {
-                stubManager.addStub(serverName, serverAddress);
+        for (const auto& s : config.servers) {
+            if (s.name != serverInfo.name) {
+                stubManager.addStub(s.name, s.address);
             }
+        }
+
+        for (const auto& s: config.servers) {
+            mShards.updateLeader(s.shard, s.name);
         }
     };
 
     ::grpc::Status Put(::grpc::ServerContext *context, const ::hashmap::PutRequest *request, ::hashmap::PutResponse *response)
     {
         const auto key = request->kv().key();
-        const auto serverName = mConsistentHashing.findServer(key);
-        if (serverName == mName) {
+        const auto shardName = mConsistentHashing.findShard(key);
+        if (shardName == mInfo.shard) {
             return put(context, request, response);
         } else {
-        
+            const auto serverName = mShards.getLeader(shardName);
             auto stub = stubManager.getStub(serverName);
             ForwardPutRequest forwardRequest;
 
@@ -63,7 +86,7 @@ public:
 
             ClientContext clientContext;
 
-            std::cout << "fowarding PUT from " << mName << " --> " << serverName << std::endl;
+            std::cout << "fowarding PUT from " << mInfo << " --> " << serverName << std::endl;
             auto res = stub->ForwardedPut(&clientContext, forwardRequest, &forwardResponse);
             response->set_success(forwardResponse.success());
             return res;
@@ -73,10 +96,11 @@ public:
     ::grpc::Status Get(::grpc::ServerContext *context, const ::hashmap::GetRequest *request, ::hashmap::GetResponse *response)
     {
         const auto key = request->key();
-        const auto serverName = mConsistentHashing.findServer(key);
-        if (serverName == mName) {
+        const auto shardName = mConsistentHashing.findShard(key);
+        if (shardName == mInfo.shard) {
             return get(context, request, response);
         } else {
+            const auto serverName = mShards.getLeader(shardName);
             auto stub = stubManager.getStub(serverName);
             ForwardGetRequest forwardRequest;
             forwardRequest.set_key(key);
@@ -85,7 +109,7 @@ public:
 
             ClientContext clientContext;
 
-            std::cout << "fowarding GET from " << mName << " --> " << serverName << std::endl;
+            std::cout << "fowarding GET from " << mInfo << " --> " << serverName << std::endl;
             auto res =  stub->ForwardedGet(&clientContext, forwardRequest, &forwardResponse);
             response->set_value(forwardResponse.value());
             response->set_found(forwardResponse.found());
@@ -96,10 +120,11 @@ public:
     ::grpc::Status Erase(::grpc::ServerContext *context, const ::hashmap::EraseRequest *request, ::hashmap::EraseResponse *response)
     {
         const auto key = request->key();
-        const auto serverName = mConsistentHashing.findServer(key);
-        if (serverName == mName) {
+        const auto shardName = mConsistentHashing.findShard(key);
+        if (shardName == mInfo.shard) {
             return erase(context, request, response);
         } else {
+            const auto serverName = mShards.getLeader(shardName);
             auto stub = stubManager.getStub(serverName);
             ForwardEraseRequest forwardRequest;
             forwardRequest.set_key(key);
@@ -108,7 +133,7 @@ public:
             
             ClientContext clientContext;
 
-            std::cout << "fowarding ERASE from " << mName << " --> " << serverName << std::endl;
+            std::cout << "fowarding ERASE from " << mInfo << " --> " << serverName << std::endl;
             auto res = stub->ForwardedErase(&clientContext, forwardRequest, &forwardResponse);
             response->set_success(forwardResponse.success());
             return res;
@@ -139,7 +164,7 @@ public:
         const auto& k = kv.key();
         const auto& v = kv.value();
 
-        std::cout << "{ " << mName << " } " << "inserting key: " << k << " value: " << v << std::endl;
+        std::cout << mInfo << " inserting key: " << k << " value: " << v << std::endl;
         mLocalMap.insert(kv.key(), kv.value());
         return ::grpc::Status::OK;
     }
@@ -149,7 +174,7 @@ public:
     ::grpc::Status get(::grpc::ServerContext *context, const Req_ *request, Resp_ *response)
     {
         const auto& key = request->key();
-        std::cout << "{ " << mName << " } " << "finding key: " << key << std::endl;
+        std::cout << mInfo << " finding key: " << key << std::endl;
         auto maybeValue = mLocalMap.get(key);
         if (maybeValue)
         {
@@ -169,13 +194,13 @@ public:
     ::grpc::Status erase(::grpc::ServerContext *context, const Req_ *request, Resp_ *response)
     {
         const auto& k = request->key();
-        std::cout << "{ " << mName << " } " << "erasing key: " << k << std::endl;
+        std::cout << mInfo << " erasing key: " << k << std::endl;
         const auto success = mLocalMap.erase(k);
 
         if (success) {
-            std::cout << "{ " << mName << " } " << "sucessfully erased " << k << std::endl;
+            std::cout << mInfo << " sucessfully erased " << k << std::endl;
         } else {
-            std::cout << "{ " << mName << " } " << "failed to erase " << k << std::endl;
+            std::cout << mInfo << " failed to erase " << k << std::endl;
         }
 
         response->set_success(success);
@@ -191,7 +216,8 @@ private:
         to.set_value(from.value());
     }
 
-    std::string_view mName;
+    ServerInfo mInfo;
+    Shards mShards;
     PartitionedHashMap mLocalMap;
     const ServerConfig& mConfig;
     ConsistentHashing<std::hash<std::string>> mConsistentHashing;

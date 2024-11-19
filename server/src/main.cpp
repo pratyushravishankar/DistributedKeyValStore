@@ -13,59 +13,37 @@ using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
 
-
 struct ServerWithService {
     std::unique_ptr<grpc::Server> server;
     std::unique_ptr<HashMapServiceImpl> service;
 };
 
-
-ServerWithService createServer(uint16_t port, 
-                                           const std::string& name, 
-                                           size_t virtualInstances, 
-                                           const ServerConfig& config) 
-{
-    std::string server_address = "0.0.0.0:" + std::to_string(port);
-    auto service = std::make_unique<HashMapServiceImpl>(config, name, virtualInstances);
-
+ServerWithService createServer(const ServerInfo& serverInfo, size_t virtualInstances, const ServerConfig& config) {
+    auto service = std::make_unique<HashMapServiceImpl>(serverInfo, virtualInstances, config);
     grpc::ServerBuilder builder;
-    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    builder.AddListeningPort(serverInfo.address, grpc::InsecureServerCredentials());
     builder.RegisterService(service.get());
-
     auto server = builder.BuildAndStart();
     return ServerWithService(std::move(server), std::move(service));
 }
 
-
-
 void startServers() {
     const auto& config = ServerConfigManager::getInstance();
-
     std::vector<std::thread> serverThreads;
 
-    serverThreads.emplace_back([&]() {
-        auto [server, service] = createServer(50051, "S1", 1, config);
-        server->Wait();
-    });
-
-    serverThreads.emplace_back([&]() {
-        auto [server, service] = createServer(50052, "S2", 4, config);
-        server->Wait();
-    });
-
-    serverThreads.emplace_back([&]() {
-        auto [server, service] = createServer(50053, "S3", 1, config);
-        server->Wait();
-    });
+    for (const auto& serverInfo : config.servers) {
+        serverThreads.emplace_back([&]() {
+            auto server = createServer(serverInfo, 1, config);
+            server.server->Wait();
+        });
+    }
 
     for (auto& thread : serverThreads) {
         thread.join();
     }
 }
 
-
-int main()
-{
+int main() {
     startServers();
     return 0;
 }
