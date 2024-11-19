@@ -10,6 +10,8 @@ service HashmapService {
     rpc ForwardedPut(ForwardPutRequest) returns (ForwardPutResponse);
     rpc ForwardedGet(ForwardGetRequest) returns (ForwardGetResponse);
     rpc ForwardedErase(ForwardEraseRequest) returns (ForwardEraseResponse);
+    rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse);
+    rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
 }
 
 // Message to represent a key-value pair
@@ -78,4 +80,22 @@ message ForwardEraseRequest {
 // Response message for the ForwardEraseRequest
 message ForwardEraseResponse {
     bool success = 1; // Indicates if the deletion was successful
+}
+
+message RequestVoteRequest {
+    int32 term = 1;
+    string candidate_name = 2;
+}
+
+message RequestVoteResponse {
+    bool vote_granted = 1;
+}
+
+message AppendEntriesRequest {
+    int32 term = 1;
+    string leader_name = 2;
+}
+
+message AppendEntriesResponse {
+    bool success = 1;
 }
