@@ -3,7 +3,6 @@
 #include <map>
 #include <unordered_set>
 #include <iostream>
-#include "HashMap.h"
 
 template<typename HashingFunc>
 class ConsistentHashing {

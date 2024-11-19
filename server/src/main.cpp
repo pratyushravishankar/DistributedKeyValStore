@@ -1,13 +1,10 @@
-#include "PartitionedHashMap.h"
 #include "HashMapServiceImpl.h"
 #include "Config.h"
-#include "StubManager.h"
-#include <iostream>
-#include <unordered_map>
-#include <grpcpp/grpcpp.h>
 #include <thread>
 #include <vector>
 #include <memory>
+
+#include <grpcpp/grpcpp.h>
 
 using grpc::Server;
 using grpc::ServerBuilder;

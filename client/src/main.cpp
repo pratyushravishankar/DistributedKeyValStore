@@ -108,7 +108,7 @@ int main()
 
     std::cout << "insert success " << reply << std::endl;
 
-    client.insert("zebra", "marty");
+    // client.insert("zebra", "marty");
 
     auto find = [&](const std::string& key) {
         auto maybeValue = client.get(key);
@@ -122,19 +122,21 @@ int main()
         }
     };
 
-    find("cat");
-    find("dog");
-    find("gorilla");
-    find("llama");
-    find("monkey");
-    find("giraffe");
-    find("zebra");
+    find("vronsky");
+
+    // find("cat");
+    // find("dog");
+    // find("gorilla");
+    // find("llama");
+    // find("monkey");
+    // find("giraffe");
+    // find("zebra");
 
 
 
 
 
-    auto success = client.erase("vronsky");
-    client.erase("llama");
-    std::cout << "Erasing sucess: " << success << std::endl;
+    // auto success = client.erase("vronsky");
+    // client.erase("llama");
+    // std::cout << "Erasing sucess: " << success << std::endl;
 }
