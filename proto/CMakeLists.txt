@@ -6,9 +6,6 @@ set(CMAKE_CXX_STANDARD 23)
 # Specify the .proto files
 set(PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/hashmap.proto)
 
-# Add proto_library target
-add_library(proto_library)
-
 # Use system-installed protoc and grpc_cpp_plugin
 find_program(_PROTOBUF_PROTOC protoc REQUIRED)
 find_program(_GRPC_CPP_PLUGIN grpc_cpp_plugin REQUIRED)
@@ -29,7 +26,7 @@ add_custom_command(
 )
 
 # Add the generated files to proto_library
-target_sources(proto_library PRIVATE
+add_library(proto_library STATIC
     ${GENERATED_FILES_DIR}/hashmap.pb.cc
     ${GENERATED_FILES_DIR}/hashmap.grpc.pb.cc
 )
