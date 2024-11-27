@@ -468,7 +468,175 @@ TEST(RaftNodeLeaderElectionTest, HeartbeatNotReceivedStartsElection)
     EXPECT_EQ(node2.getState().state, RaftState::LEADER);
 }
 
+TEST(RaftNodeConsistencyTest, PutOperationConsistency) {
+    auto executor = std::make_shared<TestExecutor>();
+    auto stubManager = std::make_shared<MockStubManager2>();
 
+    // Create three RaftNodes
+    auto localMap1 = std::make_shared<PartitionedHashMap>(1);
+    auto shards1 = std::make_shared<Shards>();
+    RaftNode<MockStubManager2> node1("node1", "shard1", {"node2", "node3"}, *stubManager, localMap1, false, shards1, executor, []() { return 100; }, false);
+
+    auto localMap2 = std::make_shared<PartitionedHashMap>(1);
+    auto shards2 = std::make_shared<Shards>();
+    RaftNode<MockStubManager2> node2("node2", "shard1", {"node1", "node3"}, *stubManager, localMap2, false, shards2, executor, []() { return 150; }, false);
+
+    auto localMap3 = std::make_shared<PartitionedHashMap>(1);
+    auto shards3 = std::make_shared<Shards>();
+    RaftNode<MockStubManager2> node3("node3", "shard1", {"node1", "node2"}, *stubManager, localMap3, false, shards3, executor, []() { return 200; }, false);
+
+    // Setup RPC callbacks
+    stubManager->onRequestVote = [&](const std::string& peerName, const hashmap::RequestVoteRequest& request, hashmap::RequestVoteResponse* response) {
+        if (peerName == "node1") {
+            node1.RequestVote(nullptr, &request, response);
+        } else if (peerName == "node2") {
+            node2.RequestVote(nullptr, &request, response);
+        } else if (peerName == "node3") {
+            node3.RequestVote(nullptr, &request, response);
+        }
+        return Status::OK;
+    };
+
+    stubManager->onAppendEntries = [&](const std::string& peerName, const hashmap::AppendEntriesRequest& request, hashmap::AppendEntriesResponse* response) {
+        if (peerName == "node1") {
+            node1.AppendEntries(nullptr, &request, response);
+        } else if (peerName == "node2") {
+            node2.AppendEntries(nullptr, &request, response);
+        } else if (peerName == "node3") {
+            node3.AppendEntries(nullptr, &request, response);
+        }
+        return Status::OK;
+    };
+
+    // Trigger an election for node1 to become leader
+    executor->advanceTime(std::chrono::milliseconds(100));
+    executor->advanceTime(std::chrono::milliseconds(0));
+    EXPECT_EQ(node1.getState().state, RaftState::LEADER);
+
+    // Simulate a PUT operation directed to the leader
+    LogEntry entry1 = {1, "key1", "value1", "PUT"};
+    node1.appendToLog(entry1);
+    node1.replicateLogToFollowers();
+
+    // // Run replication tasks
+    executor->advanceTime(std::chrono::milliseconds(0));
+
+    // Leader commits and propagates commit_index
+    node1.tryCommitLogs();
+
+    // // Verify that the value exists in all node state machines
+    EXPECT_EQ(localMap1->get("key1").value(), "value1");        // Followers should not apply the log yet
+    EXPECT_FALSE(localMap2->get("key1").has_value());
+    EXPECT_FALSE(localMap3->get("key1").has_value());
+
+    // trigger propogation of commit_index to peers, hence they commit the log
+    node1.startHeartbeat();
+    executor->advanceTime(std::chrono::milliseconds(0));
+    
+
+    // Now all nodes should apply the log
+    EXPECT_EQ(localMap1->get("key1").value(), "value1");
+    EXPECT_EQ(localMap2->get("key1").value(), "value1");
+    EXPECT_EQ(localMap3->get("key1").value(), "value1");
+}
+
+TEST(RaftNodeConsistencyTest, ERASE) {
+    auto executor = std::make_shared<TestExecutor>();
+    auto stubManager = std::make_shared<MockStubManager2>();
+
+    // Create three RaftNodes
+    auto localMap1 = std::make_shared<PartitionedHashMap>(1);
+    auto shards1 = std::make_shared<Shards>();
+    RaftNode<MockStubManager2> node1("node1", "shard1", {"node2", "node3"}, *stubManager, localMap1, false, shards1, executor, []() { return 100; }, false);
+
+    auto localMap2 = std::make_shared<PartitionedHashMap>(1);
+    auto shards2 = std::make_shared<Shards>();
+    RaftNode<MockStubManager2> node2("node2", "shard1", {"node1", "node3"}, *stubManager, localMap2, false, shards2, executor, []() { return 150; }, false);
+
+    auto localMap3 = std::make_shared<PartitionedHashMap>(1);
+    auto shards3 = std::make_shared<Shards>();
+    RaftNode<MockStubManager2> node3("node3", "shard1", {"node1", "node2"}, *stubManager, localMap3, false, shards3, executor, []() { return 200; }, false);
+
+    // Setup RPC callbacks
+    stubManager->onRequestVote = [&](const std::string& peerName, const hashmap::RequestVoteRequest& request, hashmap::RequestVoteResponse* response) {
+        if (peerName == "node1") {
+            node1.RequestVote(nullptr, &request, response);
+        } else if (peerName == "node2") {
+            node2.RequestVote(nullptr, &request, response);
+        } else if (peerName == "node3") {
+            node3.RequestVote(nullptr, &request, response);
+        }
+        return Status::OK;
+    };
+
+    stubManager->onAppendEntries = [&](const std::string& peerName, const hashmap::AppendEntriesRequest& request, hashmap::AppendEntriesResponse* response) {
+        if (peerName == "node1") {
+            node1.AppendEntries(nullptr, &request, response);
+        } else if (peerName == "node2") {
+            node2.AppendEntries(nullptr, &request, response);
+        } else if (peerName == "node3") {
+            node3.AppendEntries(nullptr, &request, response);
+        }
+        return Status::OK;
+    };
+
+    // Trigger an election for node1 to become leader
+    executor->advanceTime(std::chrono::milliseconds(100));
+    executor->advanceTime(std::chrono::milliseconds(0));
+    EXPECT_EQ(node1.getState().state, RaftState::LEADER);
+
+    // Simulate a PUT operation directed to the leader
+    LogEntry entry1 = {1, "key1", "value1", "PUT"};
+    node1.appendToLog(entry1);
+    node1.replicateLogToFollowers();
+
+    // // Run replication tasks
+    executor->advanceTime(std::chrono::milliseconds(0));
+
+    // Leader commits and propagates commit_index
+    node1.tryCommitLogs();
+
+    // Followers should not apply the log yet
+    EXPECT_EQ(localMap1->get("key1").value(), "value1");       
+    EXPECT_FALSE(localMap2->get("key1").has_value());
+    EXPECT_FALSE(localMap3->get("key1").has_value());
+
+    // trigger propogation of commit_index to peers, hence they commit the log
+    node1.startHeartbeat();
+    executor->advanceTime(std::chrono::milliseconds(0));
+    
+
+    // Now all nodes should apply the log
+    EXPECT_EQ(localMap1->get("key1").value(), "value1");
+    EXPECT_EQ(localMap2->get("key1").value(), "value1");
+    EXPECT_EQ(localMap3->get("key1").value(), "value1");
+
+
+    LogEntry entry2 = {1, "key1", "value1", "ERASE"};
+
+    node1.appendToLog(entry2);  // Simulate appending a log entry
+
+    // Run replication
+    node1.replicateLogToFollowers();
+    executor->advanceTime(std::chrono::milliseconds(0));  // Trigger replication tasks
+
+    // Commit the log on the leader - followers should not apply the log yet
+    node1.tryCommitLogs();
+    EXPECT_FALSE(node1.getLocalMap().get("key1").has_value());
+    EXPECT_TRUE(node2.getLocalMap().get("key1").has_value());
+    EXPECT_TRUE(node3.getLocalMap().get("key1").has_value());
+
+
+    node1.startHeartbeat();
+    executor->advanceTime(std::chrono::milliseconds(0));
+
+
+    // All peers apply logs, hence key is deleted
+    EXPECT_FALSE(node1.getLocalMap().get("key1").has_value());
+    EXPECT_FALSE(node2.getLocalMap().get("key1").has_value());
+    EXPECT_FALSE(node3.getLocalMap().get("key1").has_value());
+
+}
 
 
 

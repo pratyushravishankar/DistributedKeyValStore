@@ -211,7 +211,7 @@ public:
         mRaftNode.appendToLog(entry);
         mRaftNode.replicateLogToFollowers();
         
-
+        
         std::cout << mInfo << " inserting key: " << k << " value: " << v << std::endl;
         // mLocalMap.insert(k, v);
         mRaftNode.tryCommitLogs();

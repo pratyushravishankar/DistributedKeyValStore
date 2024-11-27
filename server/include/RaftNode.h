@@ -142,6 +142,7 @@ void resetHeartbeatTimer() {
                     hashmap::AppendEntriesRequest request;
                     request.set_term(mState.currentTerm);
                     request.set_leader_name(mServerName);
+                    request.set_commit_index(mState.commitIndex);
 
                     hashmap::AppendEntriesResponse response;
                     grpc::ClientContext context;
@@ -216,18 +217,23 @@ void resetHeartbeatTimer() {
                     entry.set_optype(e.opType);
                     *request.add_entries() = entry;
                 }
+                request.set_commit_index(mState.commitIndex);
 
                 hashmap::AppendEntriesResponse response;
                 grpc::ClientContext context;
 
                 auto stub = mStubManager.getStub(peer);
-                auto status = stub->AppendEntries(&context, request, &response);
-
+                std::cout << "seding log to " << peer << std::endl;
+                auto status = stub->AppendEntries(&context, request, &response);                
                 if (status.ok() && response.success()) {
                     mMatchIndex[peer] = mState.log.size() - 1;
                     mNextIndex[peer] = mState.log.size();
-                } else if (status.ok()) {
-                    mNextIndex[peer]--; // Retry with earlier log index
+                    std::cout << "Replication succeeded for " << peer << std::endl;
+                } else {
+                    mNextIndex[peer]--;
+                    if (mNextIndex[peer] < 1)  mNextIndex[peer] = 1;
+                    std::cout << "Replication failed for " << peer << std::endl;
+
                 }
             }});
         }
@@ -244,14 +250,13 @@ void resetHeartbeatTimer() {
         }
 
         resetHeartbeatTimer();
-        // Update term and leader    
         mState.currentTerm = request->term();
         mState.state = RaftState::FOLLOWER;
         mLeader = request->leader_name();
         mShards->updateLeader(mShardName, mLeader);
 
-        std::cout << "recevied heartbeat from " << mLeader << std::endl;
-        // Append new entries to log
+
+        // Handle log entries
         for (const auto& entry : request->entries()) {
             LogEntry e {
                 .term = entry.term(),
@@ -260,14 +265,15 @@ void resetHeartbeatTimer() {
                 .opType = entry.optype()
             };
             appendToLog(e);
+            std::cout << mServerName << ": Appended entry { " << e.key << ": " << e.value << " } OP: " << e.opType << std::endl;
+
         }
 
-        
 
-        // Update commit index if needed
+        std::cout << mServerName << " reqCommitIdx " << request->commit_index() << " mStateCommitIdx " << mState.commitIndex << std::endl;
         if (request->commit_index() > mState.commitIndex) {
-            // std::abort();
-            mState.commitIndex = std::min(request->commit_index(), (int)mState.log.size() - 1);
+            mState.commitIndex = std::min(request->commit_index(), 
+                                        (int)mState.log.size() - 1);
             applyCommittedEntries();
         }
 
@@ -280,16 +286,19 @@ void resetHeartbeatTimer() {
     }
 
     void applyCommittedEntries() {
-        while (mState.lastApplied < mState.commitIndex) {
-            mState.lastApplied++;
-            const auto& entry = mState.log[mState.lastApplied];
-            if (entry.opType == "PUT") {
-                mLocalMap->insert(entry.key, entry.value);
-            } else if (entry.opType == "ERASE") {
-                mLocalMap->erase(entry.key);
-            }
+    while (mState.lastApplied < mState.commitIndex) {
+        mState.lastApplied++;
+        const auto& entry = mState.log[mState.lastApplied];
+        if (entry.opType == "PUT") {
+            mLocalMap->insert(entry.key, entry.value);
+            std::cout << mServerName << ": Applied PUT { " << entry.key << ": " << entry.value << " }" << std::endl;
+        } else if (entry.opType == "ERASE") {
+            mLocalMap->erase(entry.key);
+            std::cout << mServerName << ": Applied ERASE { " << entry.key << " }" << std::endl;
         }
     }
+}
+
 
     void tryCommitLogs() {
         if (mUseLocks) std::lock_guard<std::mutex> lock(mMutex);
@@ -303,6 +312,8 @@ void resetHeartbeatTimer() {
             }
             if (replicatedCount > majority) {
                 mState.commitIndex = i;  // Update commitIndex
+                std::cout << "Log committed at index " << i << std::endl;
+
             } else {
                 break;  // No need to check further; indices are ordered
             }
