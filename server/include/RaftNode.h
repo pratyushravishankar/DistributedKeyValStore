@@ -248,6 +248,7 @@ void resetHeartbeatTimer() {
         mState.currentTerm = request->term();
         mState.state = RaftState::FOLLOWER;
         mLeader = request->leader_name();
+        mShards->updateLeader(mShardName, mLeader);
 
         std::cout << "recevied heartbeat from " << mLeader << std::endl;
         // Append new entries to log

@@ -106,8 +106,8 @@ public:
         const auto key = request->kv().key();
         const auto shardName = mConsistentHashing.findShard(key);
         std::cout << "shard to put into " << shardName << std::endl;
-        std::cout << "current server info" << mInfo.name << std::endl;
-        if (shardName == mInfo.shard) {
+        std::cout << "current server info " << mInfo.name << std::endl;
+        if (shardName == mInfo.shard && mRaftNode.isLeader()) {
             return put(context, request, response);
         } else {
             const auto serverName = mShards->getLeader(shardName);
@@ -115,7 +115,6 @@ public:
             ForwardPutRequest forwardRequest;
 
             copyKV(request->kv(), *(forwardRequest.mutable_kv()));
-            
 
             ForwardPutResponse forwardResponse;
 
@@ -132,7 +131,7 @@ public:
     {
         const auto key = request->key();
         const auto shardName = mConsistentHashing.findShard(key);
-        if (shardName == mInfo.shard) {
+        if (shardName == mInfo.shard) { // read from any node in the shard
             return get(context, request, response);
         } else {
             const auto serverName = mShards->getLeader(shardName);
@@ -156,7 +155,7 @@ public:
     {
         const auto key = request->key();
         const auto shardName = mConsistentHashing.findShard(key);
-        if (shardName == mInfo.shard) {
+        if (shardName == mInfo.shard && mRaftNode.isLeader()) {
             return erase(context, request, response);
         } else {
             const auto serverName = mShards->getLeader(shardName);
