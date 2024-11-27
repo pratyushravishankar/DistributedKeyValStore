@@ -212,8 +212,11 @@ public:
         mRaftNode.replicateLogToFollowers();
         
         
-        std::cout << mInfo << " inserting key: " << k << " value: " << v << std::endl;
+        
         // mLocalMap.insert(k, v);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::cout << mInfo << " inserting key: " << k << " value: " << v << std::endl;
         mRaftNode.tryCommitLogs();
         return ::grpc::Status::OK;
     }
@@ -263,9 +266,10 @@ public:
         mRaftNode.replicateLogToFollowers();
 
 
-        
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         std::cout << mInfo << " erasing key: " << k << std::endl;
         mRaftNode.tryCommitLogs();
+        
 
         // if (success) {
         //     std::cout << mInfo << " sucessfully erased " << k << std::endl;
