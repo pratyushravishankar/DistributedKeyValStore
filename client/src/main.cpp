@@ -1,4 +1,7 @@
 #include <iostream>
+#include <csignal>
+#include <string>
+#include <thread>
 
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/create_channel.h>
@@ -93,50 +96,52 @@ private:
     std::unique_ptr<HashmapService::Stub> stub_;
 };
 
+void signalHandler(int signum) {
+    std::cout << "Interrupt signal (" << signum << ") received. Exiting..." << std::endl;
+    exit(signum);
+}
+
 int main()
 {
+    // Register signal handler
+    signal(SIGTERM, signalHandler);
+    signal(SIGINT, signalHandler); // Handle Ctrl+C as well
 
     const auto& config = ClientConfigManager::getInstance();
     grpc::ChannelArguments args;
-    args.SetLoadBalancingPolicyName("round_robin"); // Enable round-robin load balancing
+    args.SetLoadBalancingPolicyName("round_robin");
 
-    // Create a gRPC channel
     auto channel = grpc::CreateCustomChannel(config.serverAddresses, grpc::InsecureChannelCredentials(), args);    
     HashMapClient client{channel};
 
-    auto reply = client.insert("vronsky", "adam");
+    std::string command;
+    while (true) {
+        std::cout << "Enter command (PUT key value, GET key, ERASE key): ";
+        std::getline(std::cin, command);
 
-    std::cout << "insert success " << reply << std::endl;
+        std::istringstream iss(command);
+        std::string action, key, value;
+        iss >> action >> key;
 
-    // client.insert("zebra", "marty");
-
-    auto find = [&](const std::string& key) {
-        auto maybeValue = client.get(key);
-        if (maybeValue)
-        {
-            std::cout << "value found : " << *maybeValue << std::endl;
+        if (action == "PUT") {
+            iss >> value;
+            bool reply = client.insert(key, value);
+            std::cout << "Insert success: " << reply << std::endl;
+        } else if (action == "GET") {
+            auto maybeValue = client.get(key);
+            if (maybeValue) {
+                std::cout << "Value found: " << *maybeValue << std::endl;
+            } else {
+                std::cout << "Value { " << key << " } doesn't exist" << std::endl;
+            }
+        } else if (action == "ERASE") {
+            bool success = client.erase(key);
+            std::cout << "Erase success: " << success << std::endl;
+        } else {
+            std::cout << "Unknown command." << std::endl;
         }
-        else
-        {
-            std::cout << "value { " << key << " } doesn't exist" << std::endl;
-        }
-    };
 
-    find("vronsky");
-
-    // find("cat");
-    // find("dog");
-    // find("gorilla");
-    // find("llama");
-    // find("monkey");
-    // find("giraffe");
-    // find("zebra");
-
-
-
-
-
-    // auto success = client.erase("vronsky");
-    // client.erase("llama");
-    // std::cout << "Erasing sucess: " << success << std::endl;
+        // Optional: Sleep for a short duration to avoid busy waiting
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 }
